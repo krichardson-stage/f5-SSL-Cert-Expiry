@@ -1,0 +1,43 @@
+---
+- hosts: all
+  gather_facts: false
+  connection: smart
+
+  vars_prompt:
+    - name: ansible_user
+      prompt: Username
+      private: no
+    - name: ansible_password
+      prompt: Password
+      private: yes
+
+  vars:
+    provider:
+      user: "{{ ansible_user }}"
+      password: "{{ ansible_password }}"
+      server: "{{ inventory_hostname }}"
+      validate_certs: no
+      server_port: 443
+
+  tasks: # Using Ansible v2.9
+    - block: # Provides assertion that second block will only run on the Active unit.
+      - name: Show active status
+        raw: show /cm failover-status
+        register: failover
+
+      - name: Active Status Assertion
+        assert:
+          that: "'ACTIVE' in failover.stdout_lines[5]"
+
+    - block: 
+      - name: Get Certificate Info
+        bigip_device_info:
+          provider: "{{ provider }}"
+          gather_subset:
+            - ssl-certs
+        register: certInfo
+        delegate_to: localhost
+
+      - name: Debug Certificate Info
+        debug:
+          var: certInfo.ssl_certs | json_query('[*].[name,expiration_date]')
